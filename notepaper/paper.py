@@ -1,4 +1,5 @@
 __all__ = ['get_paper_list']
+import os
 
 
 def get_paper_list():
@@ -13,3 +14,11 @@ def get_paper_list():
     ]
 
     return paper_list
+
+
+papers = get_paper_list()
+
+print(os.listdir('../'))
+
+doc = open('../README.md', 'r').read()
+print(doc)
