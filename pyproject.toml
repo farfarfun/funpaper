@@ -1,6 +1,6 @@
 [project]
 name = "funpaper"
-version = "1.0.4"
+version = "1.0.5"
 description = "funpaper"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -10,7 +10,7 @@ name = "niuliangtao"
 email = "farfarfun@qq.com"
 
 [project.scripts]
-funpaper = "funpaper.podcast.script:funpaper"
+funpaper = "funpaper.podcast.command:funpaper"
 
 [tool.setuptools]
 license-files = []
