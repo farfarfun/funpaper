@@ -1,6 +1,6 @@
 [project]
 name = "funpaper"
-version = "1.0.1"
+version = "1.0.2"
 description = "funpaper"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -8,7 +8,6 @@ dependencies = [ "langchain-community>=0.3.14", "langchain-core>=0.3.29", "langc
 [[project.authors]]
 name = "niuliangtao"
 email = "farfarfun@qq.com"
-
 
 [project.scripts]
 funpaper = "funpaper.podcast.script:funpaper"
