@@ -4,9 +4,9 @@ from funutil import getLogger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
-from .templates import enhance_prompt, initial_dialogue_prompt, plan_prompt
 from .audio_gen import generate_podcast
 from .script import generate_script, parse_script_plan
+from .templates import enhance_prompt, initial_dialogue_prompt, plan_prompt
 
 logger = getLogger("funpaper")
 
@@ -19,8 +19,9 @@ def funpaper():
         pass
 
     @cli.command()
+    @click.option("--pdf_path", type=str, help="论文地址")
     def podcast(pdf_path):
-        """创建标签"""
+        """论文生成语音"""
 
         client = get_model("deepseek")
         llm = ChatOpenAI(model="gpt-4o-mini")
