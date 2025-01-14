@@ -10,13 +10,13 @@ from setuptools import setup, find_packages
 
 install_requires = []
 
-setup(name='notepaper',
-      version='0.0.2',
-      description='notepaper',
-      author='niuliangtao',
-      author_email='1007530194@qq.com',
-      url='https://github.com/1007530194',
-
-      packages=find_packages(),
-      install_requires=install_requires
-      )
+setup(
+    name="notepaper",
+    version="0.0.2",
+    description="notepaper",
+    author="niuliangtao",
+    author_email="1007530194@qq.com",
+    url="https://github.com/1007530194",
+    packages=find_packages(),
+    install_requires=install_requires,
+)
