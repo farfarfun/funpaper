@@ -3,8 +3,8 @@ name = "funpaper"
 version = "1.0.8"
 description = "funpaper"
 readme = "README.md"
-requires-python = ">=3.9"
-dependencies = [ "langchain-community>=0.3.14", "langchain-core>=0.3.29", "langchain-openai>=0.3.0", "langchain-text-splitters>=0.3.5", "openai>=1.59.7", "pydub>=0.25.1", "pypdf2>=3.0.1", "python-dotenv>=1.0.1",]
+requires-python = ">=3.10"
+dependencies = [ "click>=8.0.0", "funai>=1.0.9", "funutil>=1.0.63", "langchain-community>=0.3.14", "langchain-core>=0.3.29", "langchain-openai>=0.3.0", "langchain-text-splitters>=0.3.5", "openai>=1.59.7", "pydub>=0.25.1", "pypdf2>=3.0.1", "python-dotenv>=1.0.1",]
 [[project.authors]]
 name = "niuliangtao"
 email = "farfarfun@qq.com"
@@ -14,3 +14,6 @@ funpaper = "funpaper.podcast.command:funpaper"
 
 [tool.setuptools]
 license-files = []
+
+[dependency-groups]
+dev = [ "pytest>=8.0.0",]
