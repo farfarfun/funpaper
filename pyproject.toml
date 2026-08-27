@@ -1,6 +1,6 @@
 [project]
 name = "funpaper"
-version = "1.0.8"
+version = "1.0.9"
 description = "funpaper"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,6 +11,10 @@ email = "farfarfun@qq.com"
 
 [project.scripts]
 funpaper = "funpaper.podcast.command:funpaper"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.setuptools]
 license-files = []
