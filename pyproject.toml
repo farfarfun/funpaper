@@ -4,7 +4,7 @@ version = "1.0.9"
 description = "funpaper"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [ "click>=8.0.0", "funai>=1.0.9", "funutil>=1.0.63", "langchain-community>=0.3.27", "langchain-core>=1.2.22", "langchain-openai>=1.1.14", "langchain-text-splitters>=1.1.2", "openai>=1.59.7", "pydub>=0.25.1", "pypdf2>=3.0.1", "python-dotenv>=1.2.2",]
+dependencies = [ "click>=8.0.0", "funai>=1.0.9", "funutil>=1.0.63", "langchain-community>=0.3.27", "langchain-core>=1.2.22", "langchain-openai>=1.1.14", "langchain-text-splitters>=1.1.2", "openai>=1.59.7", "pydub>=0.25.1", "pypdf>=6.16.2", "python-dotenv>=1.2.2",]
 [[project.authors]]
 name = "niuliangtao"
 email = "farfarfun@qq.com"

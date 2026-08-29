@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from operator import itemgetter
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from .templates import discuss_prompt_template
 from datetime import datetime
 import re
