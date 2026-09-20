@@ -242,11 +242,53 @@ def test_generate_podcast_dispatches_speakers_without_real_tts_or_merge(
     mock_merge.assert_called_once()
 
 
-def test_merge_mp3_files_is_not_smoke_tested_without_ffmpeg():
-    """merge_mp3_files 依赖 pydub + ffmpeg/avconv 解码真实 mp3 文件，需要真实
-    音频二进制数据和系统级 ffmpeg 可执行文件，不适合用简单 mock 或合成数据做
-    烟雾测试，因此显式跳过而不是伪造通过。"""
-    pytest.skip("依赖真实 ffmpeg/mp3 音频解码，非纯逻辑，跳过")
+def test_merge_mp3_files_sorts_by_timestamp_and_merges_in_order(tmp_path, monkeypatch):
+    """merge_mp3_files 本身只负责按文件名中的时间戳排序、依次合并并导出，
+    真正的音频解码/编码逻辑属于 pydub + ffmpeg。这里把 audio_gen.AudioSegment
+    整体替换为一个记录调用顺序的假实现，验证排序和合并/导出的编排逻辑，
+    不依赖真实 ffmpeg 二进制或真实音频数据。"""
+    monkeypatch.chdir(tmp_path)
+    src_dir = tmp_path / "in_dir"
+    src_dir.mkdir()
+    (src_dir / "expert_2000000000.mp3").write_bytes(b"fake-expert")
+    (src_dir / "host_1000000000.mp3").write_bytes(b"fake-host")
+    (src_dir / "learner_1500000000.mp3").write_bytes(b"fake-learner")
+
+    from funpaper.podcast import audio_gen
+
+    class _FakeAudioSegment:
+        def __init__(self, parts=None):
+            self.parts = parts or []
+            self.exported_to = None
+            self.exported_format = None
+
+        @classmethod
+        def empty(cls):
+            return cls([])
+
+        @classmethod
+        def from_mp3(cls, path):
+            return cls([Path(path).name])
+
+        def __add__(self, other):
+            return _FakeAudioSegment(self.parts + other.parts)
+
+        def export(self, output_file, format="mp3"):
+            self.exported_to = output_file
+            self.exported_format = format
+            _FakeAudioSegment.last_exported = self
+
+    with patch.object(audio_gen, "AudioSegment", _FakeAudioSegment):
+        audio_gen.merge_mp3_files("in_dir", "out.mp3")
+
+    merged = _FakeAudioSegment.last_exported
+    assert merged.parts == [
+        "host_1000000000.mp3",
+        "learner_1500000000.mp3",
+        "expert_2000000000.mp3",
+    ]
+    assert merged.exported_to == "out.mp3"
+    assert merged.exported_format == "mp3"
 
 
 # ---------------------------------------------------------------------------
@@ -284,12 +326,39 @@ def test_paper_to_podcast_orchestration_with_all_external_calls_mocked(tmp_path)
     )
 
 
-def test_initialize_discussion_chain_requires_real_credentials():
+def test_initialize_discussion_chain_builds_working_rag_chain_offline(tmp_path):
     """initialize_discussion_chain 内部会构造 OpenAIEmbeddings() 并调用
-    Chroma.from_documents(...) 做真实的 embedding API 调用（且需要本地
-    chromadb 依赖及真实 OPENAI_API_KEY），无法在不改动源码结构的前提下用简单
-    mock 安全隔离，因此跳过而不是伪造通过。"""
-    pytest.skip("需要真实凭据（OPENAI_API_KEY）及可用的 embedding/向量库后端，跳过")
+    Chroma.from_documents(...) 做真实的 embedding API 调用。这里把两者替换为
+    假实现（Chroma.from_documents 返回一个假 vectorstore，其 as_retriever()
+    返回一个真正的 LangChain RunnableLambda，以保证 LCEL 的 `|` 组合正常工作），
+    LLM 也换成 RunnableLambda，从而在完全离线、不依赖真实凭据的情况下验证
+    返回的链可以正确 invoke 并产出字符串结果。"""
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableLambda
+
+    txt_file = tmp_path / "paper.txt"
+    txt_file.write_text("hello world, this is fake paper content.", encoding="utf-8")
+
+    fake_vectorstore = MagicMock()
+    fake_vectorstore.as_retriever.return_value = RunnableLambda(
+        lambda _query: [MagicMock(page_content="相关片段一")]
+    )
+    fake_llm = RunnableLambda(lambda _prompt_value: AIMessage(content="fake reply"))
+
+    with patch("funpaper.podcast.script.OpenAIEmbeddings"), patch(
+        "funpaper.podcast.script.Chroma"
+    ) as mock_chroma:
+        mock_chroma.from_documents.return_value = fake_vectorstore
+
+        from funpaper.podcast.script import initialize_discussion_chain
+
+        chain = initialize_discussion_chain(str(txt_file), fake_llm)
+        result = chain.invoke(
+            {"section_plan": "# Section 1", "previous_dialogue": "Host: hi"}
+        )
+
+    mock_chroma.from_documents.assert_called_once()
+    assert result == "fake reply"
 
 
 # ---------------------------------------------------------------------------

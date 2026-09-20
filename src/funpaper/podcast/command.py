@@ -1,6 +1,6 @@
 import click
+from farlog import getLogger
 from funai.llm import get_model
-from funutil import getLogger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
@@ -11,8 +11,19 @@ from .templates import enhance_prompt, initial_dialogue_prompt, plan_prompt
 logger = getLogger("funpaper")
 
 
-def paper_to_podcast(pdf_path):
-    """论文生成语音"""
+def paper_to_podcast(pdf_path: str) -> None:
+    """将一篇论文 PDF 转换为播客音频文件。
+
+    依次调用 `generate_script` 生成三人访谈脚本，再调用 `generate_podcast`
+    合成并合并语音，最终产物落盘在当前目录的 `podcast_<时间戳>/` 及
+    `podcast_<时间戳>.mp3`。
+
+    Args:
+        pdf_path: 论文 PDF 文件路径。
+
+    Returns:
+        None。
+    """
 
     client = get_model("deepseek")
     llm = ChatOpenAI(model="deepseek-chat")
@@ -35,8 +46,8 @@ def paper_to_podcast(pdf_path):
     logger.info("Podcast generation complete!")
 
 
-def funpaper():
-    """主入口函数"""
+def funpaper() -> None:
+    """CLI 主入口，注册 `funpaper podcast --pdf_path ...` 命令。"""
 
     @click.group()
     def cli():
@@ -44,7 +55,7 @@ def funpaper():
 
     @cli.command()
     @click.option("--pdf_path", type=str, help="论文地址")
-    def podcast(pdf_path):
+    def podcast(pdf_path: str) -> None:
         paper_to_podcast(pdf_path)
 
     cli()

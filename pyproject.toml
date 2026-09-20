@@ -1,10 +1,12 @@
 [project]
 name = "funpaper"
 version = "1.0.9"
-description = "funpaper"
+description = "论文转播客工具：输入论文 PDF，生成三人访谈式播客脚本并合成语音"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [ "click>=8.0.0", "funai>=1.0.9", "funutil>=1.0.63", "langchain-community>=0.3.27", "langchain-core>=1.2.22", "langchain-openai>=1.1.14", "langchain-text-splitters>=1.1.2", "openai>=1.59.7", "pydub>=0.25.1", "pypdf>=6.16.2", "python-dotenv>=1.2.2",]
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [ "audioop-lts>=0.2.2; python_version >= '3.13'", "click>=8.0.0", "farlog>=1.1.8", "funai>=1.0.9", "langchain-community>=0.3.27", "langchain-core>=1.2.22", "langchain-openai>=1.1.14", "langchain-text-splitters>=1.1.2", "openai>=1.59.7", "pydub>=0.25.1", "pypdf>=6.16.2", "python-dotenv>=1.2.2",]
 [[project.authors]]
 name = "niuliangtao"
 email = "farfarfun@qq.com"
@@ -15,9 +17,6 @@ funpaper = "funpaper.podcast.command:funpaper"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.setuptools]
-license-files = []
 
 [dependency-groups]
 dev = [ "pytest>=8.0.0",]

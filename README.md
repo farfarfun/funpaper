@@ -18,7 +18,7 @@ funpaper podcast --pdf_path /path/to/paper.pdf
 
 对应 `funpaper.podcast.command:funpaper`（`pyproject.toml` 中的 `[project.scripts]`），内部依次执行：
 
-1. `funpaper.podcast.script.generate_script`：用 `PyPDF2` 抽取 PDF 正文，按 `plan_prompt` 生成播客大纲，再按大纲逐段生成对话，最后用 `enhance_prompt` 润色成最终脚本（LangChain + `Chroma` 向量检索辅助生成每一段的上下文）。
+1. `funpaper.podcast.script.generate_script`：用 `pypdf` 抽取 PDF 正文，按 `plan_prompt` 生成播客大纲，再按大纲逐段生成对话，最后用 `enhance_prompt` 润色成最终脚本（LangChain + `Chroma` 向量检索辅助生成每一段的上下文）。
 2. `funpaper.podcast.audio_gen.generate_podcast`：解析脚本中 `Host:` / `Learner:` / `Expert:` 三种角色的台词，分别用 OpenAI TTS（`tts-1` 模型，`alloy` / `fable` / `nova` 三种音色）合成语音片段，保存到 `podcast_<时间戳>/` 目录，再用 `pydub` 按时间顺序合并成 `podcast_<时间戳>.mp3`。
 
 ## 作为库使用
@@ -28,3 +28,16 @@ from funpaper.podcast.command import paper_to_podcast
 
 paper_to_podcast("/path/to/paper.pdf")
 ```
+
+---
+
+## 关于 farfarfun
+
+[farfarfun](https://github.com/farfarfun) 是一个专注于实用工具库的开源组织，
+涵盖云存储、数据处理、AI、多媒体与开发工具链等方向。
+
+- 🏠 组织主页：<https://github.com/farfarfun>
+- 📦 PyPI：<https://pypi.org/user/niuliangtao/>
+- 📧 联系：farfarfun@qq.com
+
+本项目基于 [MIT](LICENSE) 协议开源。
