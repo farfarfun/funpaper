@@ -80,12 +80,12 @@ def merge_mp3_files(directory_path: str, output_file: str) -> None:
     Returns:
         None。
     """
-    # 找出目录下所有 .mp3 文件
+    # 查找目录下所有 .mp3 文件
     mp3_files = [os.path.basename(x) for x in glob.glob(f"./{directory_path}/*.mp3")]
 
-    # 按文件名中提取的时间戳排序
+    # 按文件名中的时间戳排序
     sorted_files = sorted(mp3_files, key=lambda x: re.search(r"(\d{10})", x).group(0))
-    # 初始化一个空的 AudioSegment 用于合并
+    # 初始化空音频片段用于合并
     merged_audio = AudioSegment.empty()
 
     # 按时间顺序依次合并每个 mp3 文件
@@ -93,7 +93,7 @@ def merge_mp3_files(directory_path: str, output_file: str) -> None:
         audio = AudioSegment.from_mp3(f"./{directory_path}/{file}")
         merged_audio += audio
 
-    # 导出最终合并后的音频
+    # 导出最终合并的音频
     merged_audio.export(output_file, format="mp3")
     logger.info(f"Merged file saved as {output_file}")
 

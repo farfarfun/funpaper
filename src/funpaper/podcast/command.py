@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import click
 from farlog import getLogger
 from funai.llm import get_model
@@ -25,25 +27,29 @@ def paper_to_podcast(pdf_path: str) -> None:
         None。
     """
 
+    path = Path(pdf_path)
+    if not path.is_file():
+        raise click.ClickException(f"PDF 文件不存在或不是普通文件：{path}")
+
     client = get_model("deepseek")
     llm = ChatOpenAI(model="deepseek-chat")
 
-    # chains
+    # 构造各阶段处理链
     chains = {
         "plan_script_chain": plan_prompt | llm | parse_script_plan,
         "initial_dialogue_chain": initial_dialogue_prompt | llm | StrOutputParser(),
         "enhance_chain": enhance_prompt | llm | StrOutputParser(),
     }
 
-    # Step 1: Generate the podcast script from the PDF
-    logger.info("Generating podcast script...")
+    # 第一步：从 PDF 生成播客脚本
+    logger.info("开始生成播客脚本")
     script = generate_script(pdf_path, chains, llm)
-    logger.info("Podcast script generation complete!")
+    logger.info("播客脚本生成完成")
 
-    logger.info("Generating podcast audio files...")
-    # Step 2: Generate the podcast audio files and merge them
+    logger.info("开始生成播客音频文件")
+    # 第二步：生成并合并播客音频
     generate_podcast(script, client)
-    logger.info("Podcast generation complete!")
+    logger.info("播客生成完成")
 
 
 def funpaper() -> None:
@@ -54,7 +60,7 @@ def funpaper() -> None:
         pass
 
     @cli.command()
-    @click.option("--pdf_path", type=str, help="论文地址")
+    @click.option("--pdf_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True, help="论文地址")
     def podcast(pdf_path: str) -> None:
         paper_to_podcast(pdf_path)
 

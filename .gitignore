@@ -1,8 +1,8 @@
 build/*
 dist/*
+__pycache__/
 *.egg-info
 example/download/*
-*/__pycache__
 *.pyc
 logs
 logs/

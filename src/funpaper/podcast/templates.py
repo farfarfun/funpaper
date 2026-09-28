@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 
-# Templates
+# 提示词模板
 plan_prompt = ChatPromptTemplate.from_template("""You are a very clever planner of podcast scripts. You will be given the text of a research paper, and your task will be to generate a plan for a podcast involving 3 persons discussing about the content of the paper in a very engaging, interactive and enthusiastic way. The plan will be structured using titles and bullet points only. The plan for the podcast should follow the structure of the paper. The podcast involves the following persons:
 - The host: he will present the paper and its details in a very engaging way. very professional, friendly, warm and enthusiastic.
 - The learner: he will ask clever and significative questions about the paper and its content. he is curious and funny.
