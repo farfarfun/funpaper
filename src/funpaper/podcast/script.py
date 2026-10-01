@@ -1,13 +1,15 @@
 import re
 from datetime import datetime
 from operator import itemgetter
-from typing import Any
+from typing import TypedDict
 
 from farlog import getLogger
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
@@ -17,7 +19,15 @@ from .templates import discuss_prompt_template
 logger = getLogger("funpaper")
 
 
-def initialize_discussion_chain(txt_file: str, llm: ChatOpenAI) -> Any:
+class PodcastChains(TypedDict):
+    plan_script_chain: Runnable[dict[str, str], list[str]]
+    initial_dialogue_chain: Runnable[dict[str, str], str]
+    enhance_chain: Runnable[dict[str, str], str]
+
+
+def initialize_discussion_chain(
+    txt_file: str, llm: ChatOpenAI
+) -> Runnable[dict[str, str], str]:
     """构建基于向量检索（RAG）的分段讨论生成链。
 
     加载论文纯文本、切分为片段并建立 Chroma 向量索引，返回一个 LangChain
@@ -43,7 +53,7 @@ def initialize_discussion_chain(txt_file: str, llm: ChatOpenAI) -> Any:
     # 基于相关片段检索并生成对话
     retriever = vectorstore.as_retriever()
 
-    def format_docs(docs: list) -> str:
+    def format_docs(docs: list[Document]) -> str:
         return "\n\n".join(doc.page_content for doc in docs)
 
     discuss_rag_chain = (
@@ -129,7 +139,11 @@ def get_head(pdf_path: str) -> str:
     return "\n".join(extracted_text)
 
 
-def generate_script(pdf_path: str, chains: dict, llm: ChatOpenAI) -> str:
+def generate_script(
+    pdf_path: str,
+    chains: PodcastChains,
+    llm: ChatOpenAI,
+) -> str:
     """从论文 PDF 生成完整的三人访谈式播客脚本。
 
     Args:
@@ -173,7 +187,7 @@ def generate_script(pdf_path: str, chains: dict, llm: ChatOpenAI) -> str:
     return enhanced_script
 
 
-def parse_script_plan(ai_message: AIMessage) -> list:
+def parse_script_plan(ai_message: AIMessage) -> list[str]:
     """把 LLM 返回的大纲文本（标题 + 分级小节 + 要点）解析为小节字符串列表。
 
     Args:

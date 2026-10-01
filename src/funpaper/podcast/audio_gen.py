@@ -2,15 +2,15 @@ import datetime
 import glob
 import os
 import re
-from typing import Any
 
 from farlog import getLogger
+from openai import OpenAI
 from pydub import AudioSegment
 
 logger = getLogger("funpaper")
 
 
-def generate_host(text: str, client: Any, output_dir: str) -> Any:
+def generate_host(text: str, client: OpenAI, output_dir: str) -> None:
     """用 `alloy` 音色合成主持人（Host）台词的语音文件。
 
     Args:
@@ -30,7 +30,7 @@ def generate_host(text: str, client: Any, output_dir: str) -> Any:
     return response.stream_to_file(f"./{output_dir}/host_{now}.mp3")
 
 
-def generate_expert(text: str, client: Any, output_dir: str) -> Any:
+def generate_expert(text: str, client: OpenAI, output_dir: str) -> None:
     """用 `fable` 音色合成专家（Expert）台词的语音文件。
 
     Args:
@@ -50,7 +50,7 @@ def generate_expert(text: str, client: Any, output_dir: str) -> Any:
     return response.stream_to_file(f"./{output_dir}/expert_{now}.mp3")
 
 
-def generate_learner(text: str, client: Any, output_dir: str) -> Any:
+def generate_learner(text: str, client: OpenAI, output_dir: str) -> None:
     """用 `nova` 音色合成学习者（Learner）台词的语音文件。
 
     Args:
@@ -98,7 +98,7 @@ def merge_mp3_files(directory_path: str, output_file: str) -> None:
     logger.info(f"Merged file saved as {output_file}")
 
 
-def generate_podcast(script: str, client: Any) -> None:
+def generate_podcast(script: str, client: OpenAI) -> None:
     """解析播客脚本文本，按角色分别合成语音并合并为一个完整 mp3 文件。
 
     Args:

@@ -7,7 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
 from .audio_gen import generate_podcast
-from .script import generate_script, parse_script_plan
+from .script import PodcastChains, generate_script, parse_script_plan
 from .templates import enhance_prompt, initial_dialogue_prompt, plan_prompt
 
 logger = getLogger("funpaper")
@@ -35,7 +35,7 @@ def paper_to_podcast(pdf_path: str) -> None:
     llm = ChatOpenAI(model="deepseek-chat")
 
     # 构造各阶段处理链
-    chains = {
+    chains: PodcastChains = {
         "plan_script_chain": plan_prompt | llm | parse_script_plan,
         "initial_dialogue_chain": initial_dialogue_prompt | llm | StrOutputParser(),
         "enhance_chain": enhance_prompt | llm | StrOutputParser(),
