@@ -38,3 +38,4 @@ logs/
 .specstory/
 CLAUDE.local.md
 AGENTS.local.md
+uv.lock
