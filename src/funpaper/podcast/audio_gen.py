@@ -1,13 +1,28 @@
 import datetime
 import glob
+import itertools
 import os
 import re
+import uuid
 
 from farlog import getLogger
 from openai import OpenAI
 from pydub import AudioSegment
 
 logger = getLogger("funpaper")
+
+# 同一播客内各语音片段的单调递增序号：仅靠秒级时间戳命名时，同一角色在同一秒内
+# 生成多段台词会产生同名文件、后一段覆盖前一段，最终合并音频会丢词。序号与时间戳
+# 一起构成文件名，既保证同一进程内全局唯一，又保留 merge_mp3_files 排序所需的
+# 严格递增键（序号本身就反映真实的生成/台词顺序）。
+_segment_seq = itertools.count()
+
+
+def _segment_filename(role: str, output_dir: str) -> str:
+    """生成某角色语音片段的唯一文件名（时间戳 + 单调序号，避免同秒覆盖）。"""
+    now = int(datetime.datetime.now().timestamp())
+    seq = next(_segment_seq)
+    return f"./{output_dir}/{role}_{now}_{seq:06d}.mp3"
 
 
 def generate_host(text: str, client: OpenAI, output_dir: str) -> None:
@@ -19,15 +34,14 @@ def generate_host(text: str, client: OpenAI, output_dir: str) -> None:
         output_dir: 输出目录（相对当前工作目录）。
 
     Returns:
-        `stream_to_file` 写文件后的返回值（依赖 OpenAI SDK 版本，通常为 None）。
+        None。
     """
-    now = int(datetime.datetime.now().timestamp())
     response = client.audio.speech.create(
         model="tts-1",
         voice="alloy",
         input=text,
     )
-    return response.stream_to_file(f"./{output_dir}/host_{now}.mp3")
+    response.stream_to_file(_segment_filename("host", output_dir))
 
 
 def generate_expert(text: str, client: OpenAI, output_dir: str) -> None:
@@ -39,15 +53,14 @@ def generate_expert(text: str, client: OpenAI, output_dir: str) -> None:
         output_dir: 输出目录（相对当前工作目录）。
 
     Returns:
-        `stream_to_file` 写文件后的返回值（依赖 OpenAI SDK 版本，通常为 None）。
+        None。
     """
-    now = int(datetime.datetime.now().timestamp())
     response = client.audio.speech.create(
         model="tts-1",
         voice="fable",
         input=text,
     )
-    return response.stream_to_file(f"./{output_dir}/expert_{now}.mp3")
+    response.stream_to_file(_segment_filename("expert", output_dir))
 
 
 def generate_learner(text: str, client: OpenAI, output_dir: str) -> None:
@@ -59,19 +72,18 @@ def generate_learner(text: str, client: OpenAI, output_dir: str) -> None:
         output_dir: 输出目录（相对当前工作目录）。
 
     Returns:
-        `stream_to_file` 写文件后的返回值（依赖 OpenAI SDK 版本，通常为 None）。
+        None。
     """
-    now = int(datetime.datetime.now().timestamp())
     response = client.audio.speech.create(
         model="tts-1",
         voice="nova",
         input=text,
     )
-    return response.stream_to_file(f"./{output_dir}/learner_{now}.mp3")
+    response.stream_to_file(_segment_filename("learner", output_dir))
 
 
 def merge_mp3_files(directory_path: str, output_file: str) -> None:
-    """将目录下的多个 mp3 片段按文件名中的时间戳排序后合并为一个文件。
+    """将目录下的多个 mp3 片段按文件名中的单调序号排序后合并为一个文件。
 
     Args:
         directory_path: 存放待合并 mp3 片段的目录（相对当前工作目录）。
@@ -83,8 +95,12 @@ def merge_mp3_files(directory_path: str, output_file: str) -> None:
     # 查找目录下所有 .mp3 文件
     mp3_files = [os.path.basename(x) for x in glob.glob(f"./{directory_path}/*.mp3")]
 
-    # 按文件名中的时间戳排序
-    sorted_files = sorted(mp3_files, key=lambda x: re.search(r"(\d{10})", x).group(0))
+    # 按文件名末尾的单调序号排序（而非秒级时间戳：同一秒内生成的多段语音时间戳
+    # 相同，若仅按时间戳排序会退化为不确定的文件系统遍历顺序，丢失真实的台词
+    # 先后关系）。序号由 `_segment_filename` 写入，格式为 `..._<序号6位>.mp3`。
+    sorted_files = sorted(
+        mp3_files, key=lambda x: re.search(r"_(\d+)\.mp3$", x).group(1).zfill(20)
+    )
     # 初始化空音频片段用于合并
     merged_audio = AudioSegment.empty()
 
@@ -108,8 +124,13 @@ def generate_podcast(script: str, client: OpenAI) -> None:
     Returns:
         None。
     """
-    # 创建一个新目录用于存放音频文件
-    output_dir = f"podcast_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+    # 创建一个新目录用于存放音频文件；附加短随机后缀避免同一秒内重复调用时
+    # 目录名冲突（纯秒级时间戳在高频调用场景下会撞名，`os.mkdir` 直接抛
+    # FileExistsError）。
+    output_dir = (
+        f"podcast_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        f"_{uuid.uuid4().hex[:6]}"
+    )
     os.mkdir(output_dir)
     # 用正则捕获 "Speaker: Text"
     lines = re.findall(

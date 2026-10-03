@@ -8,7 +8,20 @@
 pip install funpaper
 ```
 
-需要配置 `DEEPSEEK_API_KEY`（脚本生成，经 [funai](https://github.com/farfarfun/funai) 调用）和 `OPENAI_API_KEY`（`tts-1` 语音合成）等环境变量。
+音频合并依赖 [pydub](https://github.com/jiaaro/pydub)，而 pydub 本身需要系统已安装 `ffmpeg`（否则 `generate_podcast` 合并 mp3 片段时会失败）：
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install ffmpeg
+
+# macOS（Homebrew）
+brew install ffmpeg
+
+# Windows（Scoop）
+scoop install ffmpeg
+```
+
+还需要配置 `DEEPSEEK_API_KEY`（脚本生成，经 [funai](https://github.com/farfarfun/funai) 调用）和 `OPENAI_API_KEY`（`tts-1` 语音合成）等环境变量。
 
 ## 命令行用法
 

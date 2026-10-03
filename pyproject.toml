@@ -19,4 +19,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
-dev = [ "pytest>=8.0.0",]
+dev = [ "pytest>=8.0.0", "funbuild>=1.6.66",]

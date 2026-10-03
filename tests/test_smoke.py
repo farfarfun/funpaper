@@ -9,10 +9,12 @@ funpaper 是一个"论文 PDF -> LangChain 生成播客脚本 -> TTS 合成语�
 3. 涉及真实 LLM（DeepSeek / OpenAI via langchain-openai）和 TTS（OpenAI audio.speech）
    调用的函数，使用 unittest.mock 打桩后可以被安全地调用一次，验证其编排逻辑
    （而不验证真实模型输出）；
-4. CLI 入口 `funpaper` 的 `--help` 能正常退出。
+4. CLI 入口 `funpaper` 的 `--help`、缺少/无效 `--pdf_path` 均能以预期退出码退出；
+5. 边界与失败路径：PDF 缺少 "Conclusion"/"Introduction" 小节、脚本为空或不含
+   任何角色标记、同一秒内重复调用导致的文件名/输出目录冲突。
 
-不修复业务逻辑 bug；如果某个函数无法在不改动源码的情况下被安全 mock 测试，则显式
-skip 并说明原因。
+不修复业务逻辑 bug（若审计中发现真实 bug，会在对应 commit 中单独说明并修复）；
+如果某个函数无法在不改动源码的情况下被安全 mock 测试，则显式 skip 并说明原因。
 """
 
 import subprocess
@@ -125,6 +127,43 @@ def test_get_head_extracts_intro_section_from_real_pdf():
     head = get_head(str(SAMPLE_PDF))
     assert isinstance(head, str)
     assert "DeepFM" in head
+
+
+def test_parse_pdf_without_conclusion_keeps_collecting_full_text(tmp_path):
+    """边界场景：论文没有 "Conclusion" 小节时，`collecting` 标志不会被置为
+    False，应收集全部页面文本，而不是静默产出空结果或抛异常。"""
+    from funpaper.podcast.script import parse_pdf
+
+    fake_pages = [MagicMock(), MagicMock()]
+    fake_pages[0].extract_text.return_value = "Page one content, no magic word."
+    fake_pages[1].extract_text.return_value = "Page two content, still nothing."
+
+    output_path = tmp_path / "extracted.txt"
+    with patch("funpaper.podcast.script.PdfReader") as mock_reader:
+        mock_reader.return_value.pages = fake_pages
+        result_path = parse_pdf("fake.pdf", str(output_path))
+
+    assert result_path == str(output_path)
+    content = output_path.read_text(encoding="utf-8")
+    assert "Page one content" in content
+    assert "Page two content" in content
+
+
+def test_get_head_without_introduction_returns_full_text(tmp_path):
+    """边界场景：论文没有 "Introduction" 小节时，应返回全部已收集文本，
+    而不是空字符串或抛异常。"""
+    from funpaper.podcast.script import get_head
+
+    fake_pages = [MagicMock(), MagicMock()]
+    fake_pages[0].extract_text.return_value = "Abstract without the magic word."
+    fake_pages[1].extract_text.return_value = "More content, still no heading."
+
+    with patch("funpaper.podcast.script.PdfReader") as mock_reader:
+        mock_reader.return_value.pages = fake_pages
+        head = get_head("fake.pdf")
+
+    assert "Abstract without the magic word" in head
+    assert "More content, still no heading" in head
 
 
 def test_parse_script_plan_is_pure_logic():
@@ -242,53 +281,122 @@ def test_generate_podcast_dispatches_speakers_without_real_tts_or_merge(
     mock_merge.assert_called_once()
 
 
-def test_merge_mp3_files_sorts_by_timestamp_and_merges_in_order(tmp_path, monkeypatch):
-    """merge_mp3_files 本身只负责按文件名中的时间戳排序、依次合并并导出，
-    真正的音频解码/编码逻辑属于 pydub + ffmpeg。这里把 audio_gen.AudioSegment
-    整体替换为一个记录调用顺序的假实现，验证排序和合并/导出的编排逻辑，
-    不依赖真实 ffmpeg 二进制或真实音频数据。"""
+class _FakeAudioSegment:
+    """记录合并顺序的假 `AudioSegment`，不依赖真实 ffmpeg 二进制或音频数据。"""
+
+    def __init__(self, parts=None):
+        self.parts = parts or []
+        self.exported_to = None
+        self.exported_format = None
+
+    @classmethod
+    def empty(cls):
+        return cls([])
+
+    @classmethod
+    def from_mp3(cls, path):
+        return cls([Path(path).name])
+
+    def __add__(self, other):
+        return _FakeAudioSegment(self.parts + other.parts)
+
+    def export(self, output_file, format="mp3"):
+        self.exported_to = output_file
+        self.exported_format = format
+        _FakeAudioSegment.last_exported = self
+
+
+def test_generate_podcast_with_empty_script_produces_no_segments(tmp_path, monkeypatch):
+    """失败/边界路径：脚本为空字符串或不含任何 `Host:`/`Learner:`/`Expert:`
+    标记时，正则匹配不到台词，三个角色的 TTS 函数都不应被调用，但仍应正常
+    走到合并步骤（即便合并出的是空音频），而不是抛未处理异常。"""
+    monkeypatch.chdir(tmp_path)
+
+    with patch("funpaper.podcast.audio_gen.generate_host") as mock_host, patch(
+        "funpaper.podcast.audio_gen.generate_expert"
+    ) as mock_expert, patch(
+        "funpaper.podcast.audio_gen.generate_learner"
+    ) as mock_learner, patch(
+        "funpaper.podcast.audio_gen.merge_mp3_files"
+    ) as mock_merge:
+        from funpaper.podcast.audio_gen import generate_podcast
+
+        generate_podcast("", MagicMock())
+
+    mock_host.assert_not_called()
+    mock_learner.assert_not_called()
+    mock_expert.assert_not_called()
+    mock_merge.assert_called_once()
+
+
+def test_merge_mp3_files_sorts_by_sequence_and_merges_in_order(tmp_path, monkeypatch):
+    """merge_mp3_files 本身只负责按文件名中的序号排序、依次合并并导出。文件名
+    格式为 `<角色>_<时间戳>_<序号>.mp3`（见 `_segment_filename`）；这里构造两个
+    时间戳相同但序号不同的文件，验证排序以序号（而非时间戳或文件系统遍历顺序）
+    为准——这正是修复「同一秒内同角色多段语音覆盖」问题时引入的排序键。"""
     monkeypatch.chdir(tmp_path)
     src_dir = tmp_path / "in_dir"
     src_dir.mkdir()
-    (src_dir / "expert_2000000000.mp3").write_bytes(b"fake-expert")
-    (src_dir / "host_1000000000.mp3").write_bytes(b"fake-host")
-    (src_dir / "learner_1500000000.mp3").write_bytes(b"fake-learner")
+    (src_dir / "expert_1000000000_000002.mp3").write_bytes(b"fake-expert")
+    (src_dir / "host_1000000000_000000.mp3").write_bytes(b"fake-host")
+    (src_dir / "learner_1000000000_000001.mp3").write_bytes(b"fake-learner")
 
     from funpaper.podcast import audio_gen
-
-    class _FakeAudioSegment:
-        def __init__(self, parts=None):
-            self.parts = parts or []
-            self.exported_to = None
-            self.exported_format = None
-
-        @classmethod
-        def empty(cls):
-            return cls([])
-
-        @classmethod
-        def from_mp3(cls, path):
-            return cls([Path(path).name])
-
-        def __add__(self, other):
-            return _FakeAudioSegment(self.parts + other.parts)
-
-        def export(self, output_file, format="mp3"):
-            self.exported_to = output_file
-            self.exported_format = format
-            _FakeAudioSegment.last_exported = self
 
     with patch.object(audio_gen, "AudioSegment", _FakeAudioSegment):
         audio_gen.merge_mp3_files("in_dir", "out.mp3")
 
     merged = _FakeAudioSegment.last_exported
     assert merged.parts == [
-        "host_1000000000.mp3",
-        "learner_1500000000.mp3",
-        "expert_2000000000.mp3",
+        "host_1000000000_000000.mp3",
+        "learner_1000000000_000001.mp3",
+        "expert_1000000000_000002.mp3",
     ]
     assert merged.exported_to == "out.mp3"
     assert merged.exported_format == "mp3"
+
+
+def test_generate_host_twice_within_same_second_uses_distinct_filenames(
+    tmp_path, monkeypatch
+):
+    """回归测试：修复前 `generate_host` 用秒级时间戳命名文件，同一秒内连续调用
+    两次会生成同名文件，第二段台词覆盖第一段，最终合并音频丢词。本测试在不
+    打桩时间的情况下连续调用两次（单元测试耗时远小于 1 秒，天然触发该场景），
+    断言写入的两个文件名互不相同。"""
+    from funpaper.podcast.audio_gen import generate_host
+
+    monkeypatch.chdir(tmp_path)
+    fake_client, fake_response = _make_fake_tts_client()
+
+    generate_host("line one", fake_client, "out_dir")
+    generate_host("line two", fake_client, "out_dir")
+
+    calls = fake_response.stream_to_file.call_args_list
+    assert len(calls) == 2
+    filenames = [call.args[0] for call in calls]
+    assert filenames[0] != filenames[1], "同一秒内两段台词的文件名不应相同"
+
+
+def test_generate_podcast_twice_within_same_second_uses_distinct_output_dirs(
+    tmp_path, monkeypatch
+):
+    """回归测试：修复前 `generate_podcast` 的输出目录名只精确到秒，同一秒内
+    连续调用两次会 `os.mkdir` 到同名目录而抛 `FileExistsError`。"""
+    monkeypatch.chdir(tmp_path)
+    script = "Host: hi\n"
+
+    with (
+        patch("funpaper.podcast.audio_gen.generate_host"),
+        patch("funpaper.podcast.audio_gen.merge_mp3_files"),
+    ):
+        from funpaper.podcast.audio_gen import generate_podcast
+
+        fake_client = MagicMock()
+        generate_podcast(script, fake_client)
+        generate_podcast(script, fake_client)  # 不应抛 FileExistsError
+
+    podcast_dirs = [p for p in tmp_path.iterdir() if p.is_dir()]
+    assert len(podcast_dirs) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -396,3 +504,42 @@ def test_cli_podcast_subcommand_help_exits_cleanly():
 
     assert result.returncode == 0
     assert "pdf_path" in result.stdout
+
+
+def test_cli_podcast_missing_pdf_path_fails_with_nonzero_exit(tmp_path):
+    """失败路径：`--pdf_path` 指向不存在的文件时，Click 的
+    `click.Path(exists=True)` 应在参数解析阶段直接报错退出，不应把 `None`
+    或不存在的路径透传给下游的 `PdfReader`。"""
+    funpaper_bin = Path(sys.executable).parent / "funpaper"
+    assert funpaper_bin.exists(), f"未找到 CLI 可执行文件: {funpaper_bin}"
+
+    missing_path = tmp_path / "does-not-exist.pdf"
+    result = subprocess.run(
+        [str(funpaper_bin), "podcast", "--pdf_path", str(missing_path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert (
+        "does-not-exist.pdf" in result.stderr or "does-not-exist.pdf" in result.stdout
+    )
+
+
+def test_cli_podcast_requires_pdf_path_option():
+    """失败路径：缺少必填的 `--pdf_path` 选项时应非零退出并给出清晰提示。"""
+    funpaper_bin = Path(sys.executable).parent / "funpaper"
+    assert funpaper_bin.exists(), f"未找到 CLI 可执行文件: {funpaper_bin}"
+
+    result = subprocess.run(
+        [str(funpaper_bin), "podcast"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "pdf_path" in result.stderr or "pdf_path" in result.stdout
