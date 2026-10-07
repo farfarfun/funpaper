@@ -8,6 +8,9 @@ logs
 logs/
 *.db
 *.rar
+podcast_*/
+podcast_*.mp3
+text_paper_*.txt
 .venv/
 .run/
 .idea/

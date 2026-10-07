@@ -129,6 +129,96 @@ def test_get_head_extracts_intro_section_from_real_pdf():
     assert "DeepFM" in head
 
 
+# ---------------------------------------------------------------------------
+# 4. 脚本生成编排：mock 掉 PDF、向量检索和 LLM 调用
+# ---------------------------------------------------------------------------
+
+
+def test_generate_script_orchestrates_multiple_sections(tmp_path, monkeypatch):
+    """多小节大纲应按顺序传递上一段对话，并在最后统一润色。"""
+    from funpaper.podcast.script import generate_script
+
+    monkeypatch.chdir(tmp_path)
+    plan_chain = MagicMock()
+    plan_chain.invoke.return_value = ["# First", "# Second"]
+    initial_chain = MagicMock()
+    initial_chain.invoke.return_value = "Host: opening\n"
+    enhance_chain = MagicMock()
+    enhance_chain.invoke.return_value = "Host: polished"
+    discuss_chain = MagicMock()
+    discuss_chain.invoke.side_effect = ["Expert: first\n", "Learner: second\n"]
+    chains = {
+        "plan_script_chain": plan_chain,
+        "initial_dialogue_chain": initial_chain,
+        "enhance_chain": enhance_chain,
+    }
+    llm = MagicMock()
+
+    def fake_parse_pdf(pdf_path, output_path):
+        Path(output_path).write_text("paper body", encoding="utf-8")
+        return output_path
+
+    with patch("funpaper.podcast.script.parse_pdf", side_effect=fake_parse_pdf) as mock_parse_pdf, patch(
+        "funpaper.podcast.script.get_head", return_value="paper head"
+    ) as mock_get_head, patch(
+        "funpaper.podcast.script.initialize_discussion_chain", return_value=discuss_chain
+    ) as mock_initialize:
+        result = generate_script("paper.pdf", chains, llm)
+
+    assert result == "Host: polished"
+    generated_text_path = mock_parse_pdf.call_args.args[1]
+    assert generated_text_path.startswith("text_paper_")
+    assert generated_text_path.endswith(".txt")
+    plan_chain.invoke.assert_called_once_with({"paper": "paper body"})
+    mock_get_head.assert_called_once_with("paper.pdf")
+    initial_chain.invoke.assert_called_once_with({"paper_head": "paper head"})
+    mock_initialize.assert_called_once_with(generated_text_path, llm)
+    assert discuss_chain.invoke.call_args_list[0].args == (
+        {"section_plan": "# First", "previous_dialogue": "Host: opening\n"},
+    )
+    assert discuss_chain.invoke.call_args_list[1].args == (
+        {"section_plan": "# Second", "previous_dialogue": "Expert: first\n"},
+    )
+    enhance_chain.invoke.assert_called_once_with(
+        {"draft_script": "Host: opening\nExpert: first\nLearner: second\n"}
+    )
+
+
+def test_generate_script_with_empty_plan_skips_section_generation(tmp_path, monkeypatch):
+    """空大纲仍应生成并润色开场，但不能调用分段讨论链。"""
+    from funpaper.podcast.script import generate_script
+
+    monkeypatch.chdir(tmp_path)
+    plan_chain = MagicMock()
+    plan_chain.invoke.return_value = []
+    initial_chain = MagicMock()
+    initial_chain.invoke.return_value = "Host: opening"
+    enhance_chain = MagicMock()
+    enhance_chain.invoke.return_value = "Host: polished"
+    discuss_chain = MagicMock()
+    chains = {
+        "plan_script_chain": plan_chain,
+        "initial_dialogue_chain": initial_chain,
+        "enhance_chain": enhance_chain,
+    }
+    llm = MagicMock()
+
+    def fake_parse_pdf(pdf_path, output_path):
+        Path(output_path).write_text("paper body", encoding="utf-8")
+        return output_path
+
+    with patch("funpaper.podcast.script.parse_pdf", side_effect=fake_parse_pdf), patch(
+        "funpaper.podcast.script.get_head", return_value="paper head"
+    ), patch(
+        "funpaper.podcast.script.initialize_discussion_chain", return_value=discuss_chain
+    ):
+        result = generate_script("paper.pdf", chains, llm)
+
+    assert result == "Host: polished"
+    discuss_chain.invoke.assert_not_called()
+    enhance_chain.invoke.assert_called_once_with({"draft_script": "Host: opening"})
+
+
 def test_parse_pdf_without_conclusion_keeps_collecting_full_text(tmp_path):
     """边界场景：论文没有 "Conclusion" 小节时，`collecting` 标志不会被置为
     False，应收集全部页面文本，而不是静默产出空结果或抛异常。"""
