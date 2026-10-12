@@ -17,8 +17,9 @@ def paper_to_podcast(pdf_path: str) -> None:
     """将一篇论文 PDF 转换为播客音频文件。
 
     依次调用 `generate_script` 生成三人访谈脚本，再调用 `generate_podcast`
-    合成并合并语音，最终产物落盘在当前目录的 `podcast_<时间戳>/` 及
-    `podcast_<时间戳>.mp3`。
+    合成并合并语音，最终产物落盘在当前目录的
+    `podcast_<YYYYMMDDHHMMSS>_<随机后缀>/` 及同名 `.mp3` 文件。
+    脚本生成阶段还会创建 `text_paper_<YYYYMMDDHHMMSS>.txt` 中间文本文件。
 
     Args:
         pdf_path: 论文 PDF 文件路径。

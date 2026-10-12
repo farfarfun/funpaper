@@ -13,6 +13,7 @@
 - README 安装步骤补充 `pydub` 依赖的系统级 `ffmpeg` 安装前置条件（Linux/macOS/Windows）。
 - 修复 `generate_host`/`generate_expert`/`generate_learner` 用秒级时间戳命名语音片段文件，同一角色在同一秒内生成多段台词时后一段会覆盖前一段、导致最终合并音频丢词的问题：改为时间戳 + 单调递增序号组合命名，并同步调整 `merge_mp3_files` 的排序键。
 - 修复 `generate_podcast` 的输出目录名只精确到秒、同一秒内重复调用会 `os.mkdir` 冲突抛 `FileExistsError` 的问题：目录名追加短随机后缀。
+- 修复 `generate_podcast` 最终 MP3 文件仅使用秒级时间戳命名、同一秒内重复调用会静默覆盖的问题：最终 MP3 使用与唯一输出目录相同的基名。
 - GitHub 仓库 description 与实际三人（主持人/学习者/专家）播客脚本实现不一致，已更正为据实描述。
 
 ### 变更

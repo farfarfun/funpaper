@@ -150,5 +150,4 @@ def generate_podcast(script: str, client: OpenAI) -> None:
             generate_expert(text, client, output_dir)
 
     # 合并音频文件为一个完整播客
-    now = int(datetime.datetime.now().timestamp())
-    merge_mp3_files(output_dir, f"podcast_{now}.mp3")
+    merge_mp3_files(output_dir, f"{output_dir}.mp3")

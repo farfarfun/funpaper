@@ -467,17 +467,19 @@ def test_generate_host_twice_within_same_second_uses_distinct_filenames(
     assert filenames[0] != filenames[1], "同一秒内两段台词的文件名不应相同"
 
 
-def test_generate_podcast_twice_within_same_second_uses_distinct_output_dirs(
+def test_generate_podcast_twice_within_same_second_keeps_distinct_outputs(
     tmp_path, monkeypatch
 ):
-    """回归测试：修复前 `generate_podcast` 的输出目录名只精确到秒，同一秒内
-    连续调用两次会 `os.mkdir` 到同名目录而抛 `FileExistsError`。"""
+    """同一秒内的两次调用必须保留各自的目录及最终 MP3，不能静默覆盖。"""
     monkeypatch.chdir(tmp_path)
     script = "Host: hi\n"
 
+    def fake_merge(_directory, output_file):
+        Path(output_file).write_bytes(b"fake podcast")
+
     with (
         patch("funpaper.podcast.audio_gen.generate_host"),
-        patch("funpaper.podcast.audio_gen.merge_mp3_files"),
+        patch("funpaper.podcast.audio_gen.merge_mp3_files", side_effect=fake_merge) as mock_merge,
     ):
         from funpaper.podcast.audio_gen import generate_podcast
 
@@ -487,6 +489,9 @@ def test_generate_podcast_twice_within_same_second_uses_distinct_output_dirs(
 
     podcast_dirs = [p for p in tmp_path.iterdir() if p.is_dir()]
     assert len(podcast_dirs) == 2
+    output_files = [Path(call.args[1]) for call in mock_merge.call_args_list]
+    assert len(set(output_files)) == 2
+    assert all(output_file.is_file() for output_file in output_files)
 
 
 # ---------------------------------------------------------------------------
